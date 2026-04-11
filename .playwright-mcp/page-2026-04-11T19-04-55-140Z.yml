@@ -1,0 +1,140 @@
+- generic [ref=e3]:
+  - generic [ref=e6]:
+    - generic [ref=e7]:
+      - img [ref=e8]
+      - generic [ref=e13]: Envíos rápidos a todo el país
+    - generic [ref=e14]:
+      - img [ref=e15]
+      - generic [ref=e18]: Productos 100% originales y certificados
+    - generic [ref=e19]:
+      - img [ref=e20]
+      - generic [ref=e22]: Pago seguro con todas las tarjetas
+    - generic [ref=e23]:
+      - img [ref=e24]
+      - generic [ref=e29]: Envíos rápidos a todo el país
+    - generic [ref=e30]:
+      - img [ref=e31]
+      - generic [ref=e34]: Productos 100% originales y certificados
+    - generic [ref=e35]:
+      - img [ref=e36]
+      - generic [ref=e38]: Pago seguro con todas las tarjetas
+    - generic [ref=e39]:
+      - img [ref=e40]
+      - generic [ref=e45]: Envíos rápidos a todo el país
+    - generic [ref=e46]:
+      - img [ref=e47]
+      - generic [ref=e50]: Productos 100% originales y certificados
+    - generic [ref=e51]:
+      - img [ref=e52]
+      - generic [ref=e54]: Pago seguro con todas las tarjetas
+  - banner [ref=e55]:
+    - generic [ref=e56]:
+      - generic [ref=e57]:
+        - link "CH+" [ref=e58] [cursor=pointer]:
+          - /url: /
+          - img "CH+" [ref=e60]
+        - navigation [ref=e61]:
+          - link "Inicio" [ref=e62] [cursor=pointer]:
+            - /url: /
+            - text: Inicio
+          - link "Productos" [ref=e64] [cursor=pointer]:
+            - /url: /products
+          - link "Nosotros" [ref=e65] [cursor=pointer]:
+            - /url: /about
+          - link "FAQ" [ref=e66] [cursor=pointer]:
+            - /url: /faq
+          - link "MoveOn" [ref=e67] [cursor=pointer]:
+            - /url: /products/moveon
+      - button "Abrir carrito de compras" [ref=e69] [cursor=pointer]:
+        - img [ref=e70]
+    - generic:
+      - complementary:
+        - generic:
+          - generic:
+            - heading "Carrito" [level=2]
+            - generic:
+              - button "Cerrar carrito de compras":
+                - img
+          - generic:
+            - generic:
+              - generic:
+                - img
+              - paragraph: Tu carrito está vacío
+              - paragraph: Agrega algunos productos para comenzar
+  - main [ref=e74]:
+    - generic [ref=e75]:
+      - generic [ref=e78]:
+        - generic [ref=e79]:
+          - generic [ref=e82]: Suplementos Premium
+          - generic [ref=e83]:
+            - heading "Potencia tu rendimiento" [level=1] [ref=e84]:
+              - text: Potencia tu
+              - generic [ref=e85]: rendimiento
+            - paragraph [ref=e86]: Suplementos de máxima pureza diseñados para personas activas que buscan resultados excepcionales.
+          - generic [ref=e87]:
+            - link "Explorar productos" [ref=e88] [cursor=pointer]:
+              - /url: /products
+              - text: Explorar productos
+              - img [ref=e89]
+            - link "Conocer más" [ref=e91] [cursor=pointer]:
+              - /url: /about
+          - generic [ref=e92]:
+            - generic [ref=e93]:
+              - img [ref=e94]
+              - generic [ref=e96]: Certificado INVIMA
+            - generic [ref=e97]:
+              - img [ref=e98]
+              - generic [ref=e101]: Calidad Premium
+            - generic [ref=e102]:
+              - img [ref=e103]
+              - generic [ref=e105]: Resultados Rápidos
+        - generic [ref=e107]:
+          - img "CH+" [ref=e111]
+          - generic [ref=e113]:
+            - generic [ref=e114]: 99.9%
+            - generic [ref=e115]: Pureza
+          - generic [ref=e117]:
+            - generic [ref=e118]: 10K+
+            - generic [ref=e119]: Atletas
+      - generic [ref=e123]:
+        - generic [ref=e124]:
+          - img [ref=e125]
+          - generic [ref=e127]: CH+ PREMIUM
+        - heading "Productos Destacados CH+" [level=2] [ref=e128]
+        - paragraph [ref=e129]: Nuestros productos premium formulados científicamente para acompañarte en cada entrenamiento y objetivo
+      - generic [ref=e160]: Cargando categorías...
+  - contentinfo [ref=e161]:
+    - generic [ref=e162]:
+      - generic [ref=e163]:
+        - generic [ref=e164]:
+          - generic [ref=e165]:
+            - img "CH+" [ref=e166]
+            - generic [ref=e167]: CH+
+          - paragraph [ref=e168]: Suplementos premium de creatina y proteína diseñados para atletas colombianos que exigen resultados reales y calidad certificada.
+        - generic [ref=e169]:
+          - heading "Enlaces Rápidos" [level=3] [ref=e170]
+          - list [ref=e171]:
+            - listitem [ref=e172]:
+              - link "Inicio" [ref=e173] [cursor=pointer]:
+                - /url: /
+            - listitem [ref=e174]:
+              - link "Productos" [ref=e175] [cursor=pointer]:
+                - /url: /products
+            - listitem [ref=e176]:
+              - link "Nosotros" [ref=e177] [cursor=pointer]:
+                - /url: "#about"
+            - listitem [ref=e178]:
+              - link "Preguntas Frecuentes" [ref=e179] [cursor=pointer]:
+                - /url: /faq
+        - generic [ref=e180]:
+          - heading "Contacto" [level=3] [ref=e181]
+          - list [ref=e182]:
+            - listitem [ref=e183]:
+              - img [ref=e184]
+              - generic [ref=e187]: admin@chmas.com.co
+            - listitem [ref=e188]:
+              - img [ref=e189]
+              - generic [ref=e192]: Santa Marta, Colombia
+      - generic [ref=e194]:
+        - paragraph [ref=e195]: © 2025 CH+ Supplements. Todos los derechos reservados.
+        - paragraph [ref=e196]: Certificado INVIMA • Calidad Premium • Hecho en Colombia

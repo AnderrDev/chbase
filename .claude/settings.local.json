@@ -1,0 +1,36 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__supabase__execute_sql",
+      "Bash(npm cache:*)",
+      "Bash(npm install:*)",
+      "Bash(npm run:*)",
+      "mcp__supabase__apply_migration",
+      "mcp__supabase__get_advisors",
+      "Bash(npx tsc:*)",
+      "Bash(npm list:*)",
+      "Bash(npm test:*)",
+      "mcp__supabase__list_edge_functions",
+      "Bash(chmod -R u+w /Users/ander/Desktop/ch/chmarket/supabase/functions_not_deployed/)",
+      "Bash(sudo chmod:*)",
+      "Bash(cp -r /Users/ander/Desktop/ch/chmarket/supabase/migrations_dev /Users/ander/Desktop/ch/supabase/)",
+      "Bash(cp -r /Users/ander/Desktop/ch/chmarket/supabase/database /Users/ander/Desktop/ch/supabase/)",
+      "mcp__supabase__deploy_edge_function",
+      "mcp__supabase__get_edge_function",
+      "Bash(supabase --version)",
+      "Bash(supabase functions:*)",
+      "Bash(grep -E \"\\\\.\\(ts|tsx\\)$\")",
+      "Bash(xargs ls:*)",
+      "Bash(awk '{print $NF}')",
+      "mcp__supabase__list_projects",
+      "mcp__supabase__list_migrations",
+      "mcp__playwright__browser_navigate",
+      "mcp__playwright__browser_take_screenshot",
+      "mcp__playwright__browser_snapshot",
+      "mcp__playwright__browser_wait_for",
+      "mcp__playwright__browser_evaluate",
+      "mcp__playwright__browser_console_messages",
+      "mcp__playwright__browser_network_requests"
+    ]
+  }
+}

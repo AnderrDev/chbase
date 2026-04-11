@@ -1,0 +1,218 @@
+- generic [ref=e3]:
+  - generic [ref=e6]:
+    - generic [ref=e7]:
+      - img [ref=e8]
+      - generic [ref=e13]: Envíos rápidos a todo el país
+    - generic [ref=e14]:
+      - img [ref=e15]
+      - generic [ref=e18]: Productos 100% originales y certificados
+    - generic [ref=e19]:
+      - img [ref=e20]
+      - generic [ref=e22]: Pago seguro con todas las tarjetas
+    - generic [ref=e23]:
+      - img [ref=e24]
+      - generic [ref=e29]: Envíos rápidos a todo el país
+    - generic [ref=e30]:
+      - img [ref=e31]
+      - generic [ref=e34]: Productos 100% originales y certificados
+    - generic [ref=e35]:
+      - img [ref=e36]
+      - generic [ref=e38]: Pago seguro con todas las tarjetas
+    - generic [ref=e39]:
+      - img [ref=e40]
+      - generic [ref=e45]: Envíos rápidos a todo el país
+    - generic [ref=e46]:
+      - img [ref=e47]
+      - generic [ref=e50]: Productos 100% originales y certificados
+    - generic [ref=e51]:
+      - img [ref=e52]
+      - generic [ref=e54]: Pago seguro con todas las tarjetas
+  - banner [ref=e55]:
+    - generic [ref=e56]:
+      - generic [ref=e57]:
+        - link "CH+" [ref=e58] [cursor=pointer]:
+          - /url: /
+          - img "CH+" [ref=e60]
+        - navigation [ref=e61]:
+          - link "Inicio" [ref=e62] [cursor=pointer]:
+            - /url: /
+          - link "Productos" [ref=e63] [cursor=pointer]:
+            - /url: /products
+            - text: Productos
+          - link "Nosotros" [ref=e65] [cursor=pointer]:
+            - /url: /about
+          - link "FAQ" [ref=e66] [cursor=pointer]:
+            - /url: /faq
+          - link "MoveOn" [ref=e67] [cursor=pointer]:
+            - /url: /products/moveon
+      - button "Abrir carrito de compras" [ref=e69] [cursor=pointer]:
+        - img [ref=e70]
+    - generic:
+      - complementary:
+        - generic:
+          - generic:
+            - heading "Carrito" [level=2]
+            - generic:
+              - button "Cerrar carrito de compras":
+                - img
+          - generic:
+            - generic:
+              - generic:
+                - img
+              - paragraph: Tu carrito está vacío
+              - paragraph: Agrega algunos productos para comenzar
+  - main [ref=e74]:
+    - generic [ref=e75]:
+      - generic [ref=e82]:
+        - generic [ref=e83]:
+          - img [ref=e84]
+          - generic [ref=e86]: CH+ PREMIUM
+        - heading "Productos CH+" [level=1] [ref=e87]
+        - paragraph [ref=e88]: Nuestros productos premium formulados científicamente para acompañarte en cada entrenamiento y objetivo
+      - generic [ref=e91]:
+        - complementary [ref=e92]:
+          - generic [ref=e94]:
+            - generic [ref=e95]:
+              - generic [ref=e96]: Buscar
+              - textbox "Nombre o descripción" [ref=e97]
+            - generic [ref=e98]:
+              - generic [ref=e99]:
+                - button "Categorías" [expanded] [ref=e100] [cursor=pointer]:
+                  - generic [ref=e101]: Categorías
+                  - img [ref=e102]
+                - region [ref=e104]:
+                  - generic [ref=e106]:
+                    - generic [ref=e240]:
+                      - radio "Todas" [checked] [ref=e241]
+                      - text: Todas
+                    - generic [ref=e242]:
+                      - radio "Combos" [ref=e243]
+                      - text: Combos
+                    - generic [ref=e244]:
+                      - radio "Creatina" [ref=e245]
+                      - text: Creatina
+                    - generic [ref=e246]:
+                      - radio "Proteina" [ref=e247]
+                      - text: Proteina
+              - generic [ref=e108]:
+                - button "Precio" [ref=e109] [cursor=pointer]:
+                  - generic [ref=e110]: Precio
+                  - img [ref=e111]
+                - region:
+                  - generic [ref=e114]:
+                    - generic [ref=e115]:
+                      - generic [ref=e116]: Mín (COP)
+                      - spinbutton [ref=e117]
+                    - generic [ref=e118]:
+                      - generic [ref=e119]: Máx (COP)
+                      - spinbutton [ref=e120]
+              - generic [ref=e121]:
+                - button "Disponibilidad" [ref=e122] [cursor=pointer]:
+                  - generic [ref=e123]: Disponibilidad
+                  - img [ref=e124]
+                - region:
+                  - generic [ref=e127]:
+                    - checkbox "Solo en stock" [ref=e128]
+                    - text: Solo en stock
+              - generic [ref=e129]:
+                - button "Ordenar" [ref=e130] [cursor=pointer]:
+                  - generic [ref=e131]: Ordenar
+                  - img [ref=e132]
+                - region:
+                  - generic [ref=e135]:
+                    - generic [ref=e136]:
+                      - radio "Relevancia" [checked] [ref=e137]
+                      - text: Relevancia
+                    - generic [ref=e138]:
+                      - 'radio "Precio: menor a mayor" [ref=e139]'
+                      - text: "Precio: menor a mayor"
+                    - generic [ref=e140]:
+                      - 'radio "Precio: mayor a menor" [ref=e141]'
+                      - text: "Precio: mayor a menor"
+        - generic [ref=e248]:
+          - link "Creatina CH+ Agregar Creatina CH+ al carrito CH+ 4.8 Creatina CH+ Aumenta la fuerza Mejora el rendimiento +1 más $ 130.000,00 $ 115.000,00 100 unidades disponibles Creatina" [ref=e250] [cursor=pointer]:
+            - /url: /product/creatina-ch
+            - generic [ref=e251]:
+              - img "Creatina CH+" [ref=e253]
+              - button "Agregar Creatina CH+ al carrito" [ref=e255]:
+                - img [ref=e256]
+              - generic [ref=e259]: CH+
+              - generic [ref=e260]:
+                - img [ref=e261]
+                - generic [ref=e263]: "4.8"
+            - generic [ref=e264]:
+              - generic [ref=e265]:
+                - heading "Creatina CH+" [level=3] [ref=e266]
+                - generic [ref=e267]:
+                  - generic [ref=e268]: Aumenta la fuerza
+                  - generic [ref=e269]: Mejora el rendimiento
+                  - generic [ref=e270]: +1 más
+              - generic [ref=e271]:
+                - generic [ref=e272]:
+                  - generic [ref=e273]: $ 130.000,00
+                  - generic [ref=e274]: $ 115.000,00
+                - generic [ref=e275]:
+                  - generic [ref=e276]: 100 unidades disponibles
+                  - generic [ref=e278]: Creatina
+          - link "Proteina CH+ Agregar Proteina CH+ al carrito CH+ 4.8 Proteina CH+ Aumenta la fuerza Mejora el rendimiento +2 más $ 170.000,00 $ 150.000,00 100 unidades disponibles Proteina" [ref=e280] [cursor=pointer]:
+            - /url: /product/proteina-ch
+            - generic [ref=e281]:
+              - img "Proteina CH+" [ref=e283]
+              - button "Agregar Proteina CH+ al carrito" [ref=e285]:
+                - img [ref=e286]
+              - generic [ref=e289]: CH+
+              - generic [ref=e290]:
+                - img [ref=e291]
+                - generic [ref=e293]: "4.8"
+            - generic [ref=e294]:
+              - generic [ref=e295]:
+                - heading "Proteina CH+" [level=3] [ref=e296]
+                - generic [ref=e297]:
+                  - generic [ref=e298]: Aumenta la fuerza
+                  - generic [ref=e299]: Mejora el rendimiento
+                  - generic [ref=e300]: +2 más
+              - generic [ref=e301]:
+                - generic [ref=e302]:
+                  - generic [ref=e303]: $ 170.000,00
+                  - generic [ref=e304]: $ 150.000,00
+                - generic [ref=e305]:
+                  - generic [ref=e306]: 100 unidades disponibles
+                  - generic [ref=e308]: Proteina
+  - contentinfo [ref=e204]:
+    - generic [ref=e205]:
+      - generic [ref=e206]:
+        - generic [ref=e207]:
+          - generic [ref=e208]:
+            - img "CH+" [ref=e209]
+            - generic [ref=e210]: CH+
+          - paragraph [ref=e211]: Suplementos premium de creatina y proteína diseñados para atletas colombianos que exigen resultados reales y calidad certificada.
+        - generic [ref=e212]:
+          - heading "Enlaces Rápidos" [level=3] [ref=e213]
+          - list [ref=e214]:
+            - listitem [ref=e215]:
+              - link "Inicio" [ref=e216] [cursor=pointer]:
+                - /url: /
+            - listitem [ref=e217]:
+              - link "Productos" [ref=e218] [cursor=pointer]:
+                - /url: /products
+            - listitem [ref=e219]:
+              - link "Nosotros" [ref=e220] [cursor=pointer]:
+                - /url: "#about"
+            - listitem [ref=e221]:
+              - link "Preguntas Frecuentes" [ref=e222] [cursor=pointer]:
+                - /url: /faq
+        - generic [ref=e223]:
+          - heading "Contacto" [level=3] [ref=e224]
+          - list [ref=e225]:
+            - listitem [ref=e226]:
+              - img [ref=e227]
+              - generic [ref=e230]: admin@chmas.com.co
+            - listitem [ref=e231]:
+              - img [ref=e232]
+              - generic [ref=e235]: Santa Marta, Colombia
+      - generic [ref=e237]:
+        - paragraph [ref=e238]: © 2025 CH+ Supplements. Todos los derechos reservados.
+        - paragraph [ref=e239]: Certificado INVIMA • Calidad Premium • Hecho en Colombia
+  - link "Contactar por WhatsApp" [ref=e310] [cursor=pointer]:
+    - /url: https://wa.me/+573012244006?text=Hola!%20Me%20interesa%20conocer%20m%C3%A1s%20sobre%20los%20productos%20de%20CH%2B.%20%C2%BFPodr%C3%ADan%20ayudarme%3F
+    - img [ref=e313]
