@@ -376,12 +376,38 @@ serve(async req => {
           );
         }
 
-        const { data, error } = await supabaseClient
-          .from('orders')
-          .update({ status })
-          .eq('id', orderId)
-          .select()
-          .single();
+        // Cancelar pasa por el RPC para devolver el stock reservado y liberar
+        // los cupones; el resto de estados se actualizan directamente.
+        if (status === 'CANCELLED') {
+          const { data: result, error: cancelError } = await supabaseClient.rpc(
+            'cancel_order',
+            { p_order_id: orderId, p_only_pending: false }
+          );
+          if (cancelError || result === 'NOT_FOUND') {
+            return new Response(
+              JSON.stringify({
+                error: cancelError
+                  ? 'Error al cancelar la orden'
+                  : 'Orden no encontrada',
+                details: cancelError?.message ?? `No se encontró una orden con el ID: ${orderId}`,
+              }),
+              {
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+                status: cancelError ? 400 : 404,
+              }
+            );
+          }
+        }
+
+        const { data, error } =
+          status === 'CANCELLED'
+            ? await supabaseClient.from('orders').select().eq('id', orderId).single()
+            : await supabaseClient
+                .from('orders')
+                .update({ status })
+                .eq('id', orderId)
+                .select()
+                .single();
 
         if (error) {
           if (error.code === 'PGRST116') {

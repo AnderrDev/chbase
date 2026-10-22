@@ -37,9 +37,23 @@ Deno.serve(async req => {
       );
     }
 
+    // Cancela órdenes no pagadas cuya reserva de stock expiró
+    const { data: expired, error: expireError } = await supabase.rpc(
+      'expire_stale_orders'
+    );
+
+    if (expireError) {
+      console.error('cleanup-reservations expire error:', expireError.message);
+      return cors(
+        { error: 'Error expirando órdenes', detail: expireError.message },
+        500
+      );
+    }
+
     return cors({
       success: true,
       cleaned: cleanupResult ?? 0,
+      expired_orders: expired ?? 0,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {

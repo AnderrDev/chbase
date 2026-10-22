@@ -11,6 +11,16 @@ import {
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const MP_ACCESS_TOKEN = Deno.env.get('MP_ACCESS_TOKEN')!;
+// Minutos que el cliente tiene para pagar. El stock se reserva un poco más
+// para no devolverlo mientras un pago iniciado al límite aún se procesa.
+const CHECKOUT_TTL_MINUTES = Math.max(
+  5,
+  Number(Deno.env.get('CHECKOUT_TTL_MINUTES') ?? '30') || 30
+);
+const STOCK_RESERVATION_GRACE_MINUTES = 10;
+
+// Formato con offset explícito que acepta Mercado Pago
+const mpDate = (d: Date) => d.toISOString().replace('Z', '+00:00');
 
 type CartItem = { variant_id: string; quantity: number };
 type Payload = {
@@ -64,6 +74,24 @@ Deno.serve(async req => {
   try {
     const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
     console.log('✅ [CREATE-PREFERENCE] Cliente Supabase creado');
+
+    // Devuelve el stock de checkouts abandonados antes de comprobar el nuestro
+    // (respaldo por si pg_cron no está habilitado)
+    const { error: expireErr } = await supabase.rpc('expire_stale_orders');
+    if (expireErr) {
+      console.error('⚠️ [CREATE-PREFERENCE] expire_stale_orders falló:', expireErr.message);
+    }
+
+    // Cancela la orden devolviendo stock y reservas de cupón
+    const cancelOrder = async (orderId: string) => {
+      const { error } = await supabase.rpc('cancel_order', {
+        p_order_id: orderId,
+        p_only_pending: true,
+      });
+      if (error) {
+        console.error('❌ [CREATE-PREFERENCE] cancel_order falló:', error.message);
+      }
+    };
 
     // Obtener el origen de manera más robusta
     const origin = (() => {
@@ -335,7 +363,8 @@ Deno.serve(async req => {
     const { error: oiErr } = await supabase
       .from('order_items')
       .insert(itemsToInsert);
-    if (oiErr)
+    if (oiErr) {
+      await cancelOrder(order.id);
       return cors(
         {
           error: 'DB error (order_items)',
@@ -343,6 +372,7 @@ Deno.serve(async req => {
         },
         400
       );
+    }
 
     // 6) Reserva atómica del cupón (límite total y por cliente). No se
     // descuenta hasta que el webhook confirma el pago.
@@ -358,10 +388,7 @@ Deno.serve(async req => {
       );
 
       if (reservationError || reservation !== 'RESERVED') {
-        await supabase
-          .from('orders')
-          .update({ status: 'CANCELLED', payment_status: 'CANCELLED' })
-          .eq('id', order.id);
+        await cancelOrder(order.id);
 
         const messages: Record<string, string> = {
           EXHAUSTED: 'Este cupón ya alcanzó el máximo de usos',
@@ -387,6 +414,31 @@ Deno.serve(async req => {
           400
         );
       }
+    }
+
+    // 6b) Reserva de stock: se descuenta ya, de forma atómica, para que dos
+    // compradores no puedan pagar la misma última unidad.
+    const { data: stockResult, error: stockErr } = await supabase.rpc(
+      'reserve_order_stock',
+      {
+        p_order_id: order.id,
+        p_ttl_minutes: CHECKOUT_TTL_MINUTES + STOCK_RESERVATION_GRACE_MINUTES,
+      }
+    );
+
+    if (stockErr || stockResult !== 'RESERVED') {
+      await cancelOrder(order.id);
+      const outOfStock = stockResult === 'OUT_OF_STOCK';
+      return cors(
+        {
+          error: outOfStock ? 'Insufficient stock' : 'Error reservando stock',
+          detail: outOfStock
+            ? 'Alguno de los productos se agotó mientras comprabas. Revisa tu carrito.'
+            : stockErr?.message ?? String(stockResult),
+          code: outOfStock ? 'OUT_OF_STOCK' : 'STOCK_RESERVATION_FAILED',
+        },
+        outOfStock ? 409 : 500
+      );
     }
 
     // 7) Preferencia MP
@@ -469,9 +521,16 @@ Deno.serve(async req => {
         notification_url: notificationUrl,
         auto_return: 'approved', // Habilitar autoreturn para pagos aprobados
         binary_mode: true, // Evitar estados intermedios
+        // La preferencia caduca antes que la reserva de stock
+        expires: true,
+        expiration_date_from: mpDate(new Date()),
+        expiration_date_to: mpDate(
+          new Date(Date.now() + CHECKOUT_TTL_MINUTES * 60_000)
+        ),
       }),
     });
     if (!prefRes.ok) {
+      await cancelOrder(order.id);
       const t = await prefRes.text().catch(() => '');
       console.log('❌ [CREATE-PREFERENCE] Error de MercadoPago:', {
         status: prefRes.status,
@@ -502,7 +561,8 @@ Deno.serve(async req => {
       error: upErr?.message || null
     });
 
-    if (upErr)
+    if (upErr) {
+      await cancelOrder(order.id);
       return cors(
         {
           error: 'DB error (update preference_id)',
@@ -510,6 +570,7 @@ Deno.serve(async req => {
         },
         400
       );
+    }
 
     console.log('🎉 [CREATE-PREFERENCE] Función completada exitosamente:', {
       order_number: orderNumber,

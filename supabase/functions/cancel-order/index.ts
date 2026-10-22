@@ -65,56 +65,29 @@ Deno.serve(async req => {
       );
     }
 
-    // Marcar orden como cancelada primero: el filtro por status evita pisar un
-    // pago que el webhook haya confirmado entre la lectura y este update.
-    const { data: cancelled, error: updateError } = await supabase
-      .from('orders')
-      .update({
-        status: 'CANCELLED',
-        payment_status: 'CANCELLED',
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', order_id)
-      .eq('status', 'CREATED')
-      .select('id');
+    // Cancela en una transacción con la orden bloqueada: devuelve el stock
+    // reservado y libera los cupones. Si el webhook la marcó como pagada entre
+    // tanto, cancel_order responde NOT_CANCELLABLE.
+    const { data: result, error: cancelError } = await supabase.rpc('cancel_order', {
+      p_order_id: order_id,
+      p_only_pending: true,
+    });
 
-    if (updateError) {
-      return cors({ error: 'Error cancelando orden', detail: updateError.message }, 500);
+    if (cancelError) {
+      return cors({ error: 'Error cancelando orden', detail: cancelError.message }, 500);
     }
 
-    if (!cancelled || cancelled.length === 0) {
+    if (result !== 'CANCELLED') {
       return cors(
         { error: 'Orden no cancelable', detail: 'La orden cambió de estado' },
         409
       );
     }
 
-    // Liberar reservas de cupones en paralelo
-    const { data: reservations } = await supabase
-      .from('coupon_reservations')
-      .select('discount_id')
-      .eq('order_id', order_id);
-
-    if (reservations && reservations.length > 0) {
-      const results = await Promise.allSettled(
-        reservations.map(r =>
-          supabase.rpc('release_coupon_reservation', {
-            p_order_id: order_id,
-            p_discount_id: r.discount_id,
-          })
-        )
-      );
-      const failed = results.filter(r => r.status === 'rejected');
-      if (failed.length > 0) {
-        console.error(`cancel-order: ${failed.length} coupon release(s) failed for order ${order_id}`);
-      }
-    }
-
     return cors({
       success: true,
       message: 'Orden cancelada exitosamente',
       order_id,
-      reservations_released: reservations?.length || 0,
     });
   } catch (error) {
     console.error('cancel-order unexpected error:', error instanceof Error ? error.message : error);

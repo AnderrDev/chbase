@@ -15,6 +15,8 @@
 --      todavía registre el uso del cupón. Las reservas expiradas no cuentan
 --      para los límites (las consultas filtran por expires_at).
 -- Idempotente: se puede ejecutar varias veces.
+-- OJO: 013_stock_reservations.sql reemplaza apply_mp_payment. Si se vuelve a
+-- ejecutar esta migración después de la 013, hay que ejecutar la 013 otra vez.
 -- =====================================================
 
 begin;
