@@ -1,6 +1,7 @@
 // supabase/functions/validate-coupon/index.ts
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { evaluateCoupon, loadCartLines } from '../_shared/coupons.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_ROLE_KEY = Deno.env.get('SERVICE_ROLE_KEY')!;
@@ -23,201 +24,53 @@ Deno.serve(async req => {
 
   try {
     const body = await req.json().catch(() => ({}));
-    const { code, subtotalCents, cartItems } = body;
+    const { code, cartItems } = body;
 
     if (!code) {
       return cors({ error: 'Código de cupón requerido' }, 400);
     }
 
+    if (!Array.isArray(cartItems) || cartItems.length === 0) {
+      return cors({
+        valid: false,
+        message: 'Este cupón requiere información de productos del carrito',
+      });
+    }
+
     const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
-    const couponCode = String(code).toUpperCase();
 
-    // Buscar el cupón con información de scope
-    const { data: coupon, error } = await supabase
-      .from('discount_codes')
-      .select(
-        `
-        *,
-        applicable_product_ids,
-        applicable_category_ids,
-        applies_to_all_products
-      `
-      )
-      .eq('code', couponCode)
-      .eq('is_active', true)
-      .maybeSingle();
-
-    if (error) {
-      return cors(
-        { error: 'Error de base de datos', detail: error.message },
-        400
+    // Precios desde la BD (se ignora unit_price_cents del cliente) y mismas
+    // reglas que create-preference, para que el descuento mostrado sea el cobrado.
+    const items = cartItems
+      .map((i: { variant_id?: unknown; quantity?: unknown }) => ({
+        variant_id: String(i?.variant_id ?? ''),
+        quantity: Number(i?.quantity),
+      }))
+      .filter(
+        (i: { variant_id: string; quantity: number }) =>
+          i.variant_id && Number.isInteger(i.quantity) && i.quantity > 0
       );
-    }
+    const { lines } = await loadCartLines(supabase, items);
 
-    if (!coupon) {
+    if (lines.length === 0) {
       return cors({
         valid: false,
-        message: 'Código de cupón no válido',
+        message: 'No se encontraron productos válidos en el carrito',
       });
     }
 
-    // Validar fecha de expiración
-    const now = new Date();
-    if (coupon.end_at && new Date(coupon.end_at) < now) {
+    const result = await evaluateCoupon(supabase, String(code), lines);
+
+    if (!result.valid) {
       return cors({
         valid: false,
-        message: 'Cupón expirado',
+        code: result.code,
+        message: result.message,
+        ...result.extra,
       });
     }
 
-    if (coupon.start_at && new Date(coupon.start_at) > now) {
-      return cors({
-        valid: false,
-        message: 'Cupón aún no está disponible',
-      });
-    }
-
-    // Determinar subtotal aplicable basado en scope del cupón
-    let applicableSubtotalCents = subtotalCents || 0;
-    let applicableItemIds: string[] = [];
-    let scopeMessage = '';
-
-    if (!coupon.applies_to_all_products) {
-      // Cupón para productos específicos - validar scope
-      if (!cartItems || !Array.isArray(cartItems) || cartItems.length === 0) {
-        return cors({
-          valid: false,
-          message: 'Este cupón requiere información de productos del carrito',
-        });
-      }
-
-      // Obtener información de productos y categorías del carrito
-      const variantIds = cartItems
-        .map((item: any) => item.variant_id)
-        .filter(Boolean);
-
-      if (variantIds.length === 0) {
-        return cors({
-          valid: false,
-          message: 'No se encontraron productos válidos en el carrito',
-        });
-      }
-
-      // Consultar productos y categorías de los items del carrito
-      const { data: cartProducts, error: cartError } = await supabase
-        .from('product_variants')
-        .select(
-          `
-          id,
-          product_id,
-          products!inner(
-            id,
-            category_id,
-            name
-          )
-        `
-        )
-        .in('id', variantIds);
-
-      if (cartError) {
-        return cors(
-          {
-            error: 'Error al validar productos del carrito',
-            detail: cartError.message,
-          },
-          400
-        );
-      }
-
-      // Filtrar items aplicables
-      const applicableItems =
-        cartProducts?.filter((item: any) => {
-          const productId = item.product_id;
-          const categoryId = item.products?.category_id;
-
-          // Verificar si aplica por producto específico
-          if (
-            coupon.applicable_product_ids &&
-            coupon.applicable_product_ids.length > 0
-          ) {
-            if (coupon.applicable_product_ids.includes(productId)) {
-              return true;
-            }
-          }
-
-          // Verificar si aplica por categoría
-          if (
-            coupon.applicable_category_ids &&
-            coupon.applicable_category_ids.length > 0
-          ) {
-            if (
-              categoryId &&
-              coupon.applicable_category_ids.includes(categoryId)
-            ) {
-              return true;
-            }
-          }
-
-          return false;
-        }) || [];
-
-      if (applicableItems.length === 0) {
-        return cors({
-          valid: false,
-          message: 'Este cupón no aplica a ningún producto en tu carrito',
-        });
-      }
-
-      // Calcular subtotal solo de productos aplicables
-      applicableItemIds = applicableItems.map((item: any) => item.id);
-      applicableSubtotalCents = cartItems
-        .filter((item: any) => applicableItemIds.includes(item.variant_id))
-        .reduce(
-          (sum: number, item: any) =>
-            sum + item.unit_price_cents * item.quantity,
-          0
-        );
-
-      scopeMessage = `Aplica a ${applicableItems.length} producto${applicableItems.length > 1 ? 's' : ''}`;
-    } else {
-      // Cupón para todos los productos
-      scopeMessage = 'Aplica a todos los productos';
-    }
-
-    // Validar mínimo de compra sobre el subtotal aplicable
-    if (
-      coupon.min_order_cents &&
-      applicableSubtotalCents < coupon.min_order_cents
-    ) {
-      return cors({
-        valid: false,
-        message: `Mínimo de compra: $${(coupon.min_order_cents / 100).toLocaleString('es-CO')} (en productos aplicables)`,
-        minOrderCents: coupon.min_order_cents,
-        applicableSubtotalCents,
-      });
-    }
-
-    // Calcular descuento sobre el subtotal aplicable
-    let discountCents = 0;
-    let discountMessage = '';
-
-    if (coupon.type === 'PERCENT') {
-      discountCents = Math.floor(
-        (applicableSubtotalCents *
-          Math.max(0, Math.min(100, coupon.value_percent ?? 0))) /
-          100
-      );
-      discountMessage = `${coupon.value_percent}% de descuento`;
-    } else if (coupon.type === 'FIXED') {
-      discountCents = Math.max(
-        0,
-        Math.min(coupon.value_cents ?? 0, applicableSubtotalCents)
-      );
-      discountMessage = `$${(coupon.value_cents / 100).toLocaleString('es-CO')} de descuento`;
-    } else if (coupon.type === 'FREE_SHIPPING') {
-      discountMessage = 'Envío gratis';
-    }
-
+    const { coupon } = result;
     return cors({
       valid: true,
       coupon: {
@@ -231,12 +84,12 @@ Deno.serve(async req => {
         applicable_product_ids: coupon.applicable_product_ids,
         applicable_category_ids: coupon.applicable_category_ids,
       },
-      discountCents,
-      discountMessage,
-      applicableSubtotalCents,
-      applicableItemIds,
-      scopeMessage,
-      message: `Cupón válido: ${discountMessage} (${scopeMessage})`,
+      discountCents: result.discountCents,
+      discountMessage: result.discountMessage,
+      applicableSubtotalCents: result.applicableSubtotalCents,
+      applicableItemIds: result.applicableItemIds,
+      scopeMessage: result.scopeMessage,
+      message: `Cupón válido: ${result.discountMessage} (${result.scopeMessage})`,
     });
   } catch (e: unknown) {
     const msg = e && (e as Error).message ? (e as Error).message : String(e);

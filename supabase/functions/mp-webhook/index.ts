@@ -34,7 +34,11 @@ function plain(text: string, status = 200) {
  *  Mensaje firmado: "id:<data_id>;request-id:<x-request-id>;ts:<timestamp>"
  */
 async function verifyHmac(req: Request, dataId: string): Promise<boolean> {
-  if (!WEBHOOK_SECRET) return true; // Si no está configurado, no verificamos
+  // Falla cerrado: sin secreto no se acepta ninguna notificación
+  if (!WEBHOOK_SECRET) {
+    console.error('mp-webhook: MP_WEBHOOK_SECRET no está configurado');
+    return false;
+  }
 
   const xSignature = req.headers.get('x-signature');
   const xRequestId = req.headers.get('x-request-id') ?? '';
@@ -65,7 +69,14 @@ async function verifyHmac(req: Request, dataId: string): Promise<boolean> {
     .map(b => b.toString(16).padStart(2, '0'))
     .join('');
 
-  return expectedHash === receivedHash;
+  return timingSafeEqual(expectedHash, receivedHash.toLowerCase());
+}
+
+function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
 }
 
 Deno.serve(async req => {
@@ -100,90 +111,53 @@ Deno.serve(async req => {
     const r = await mpFetch(`/v1/payments/${payId}`);
     if (!r.ok) {
       console.error(`mp-webhook: MP API error ${r.status} for payment ${payId}`);
-      return plain('ok');
+      // 404: pago inexistente, reintentar no sirve. Otros: que MP reintente.
+      return r.status === 404 ? plain('ok') : plain('mp api error', 502);
     }
 
     const mp = await r.json();
-    const status = String(mp.status || '').toUpperCase(); // APPROVED | PENDING | REJECTED...
     const extRef = String(mp.external_reference || '');
-    const payIdStr = String(mp.id);
-
     if (!extRef) return plain('ok');
 
     const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
-    // Actualiza pago en la orden
-    const { data: order, error: updErr } = await supabase
-      .from('orders')
-      .update({
-        payment_status: status,
-        payment_id: payIdStr,
-        payment_raw: mp,
-      })
-      .eq('order_number', extRef)
-      .select('id, status')
-      .maybeSingle();
+    // Una sola transacción con la orden bloqueada: idempotente ante
+    // notificaciones duplicadas/concurrentes, verifica importe y moneda, y
+    // aplica stock + cupón + PAID juntos (ver migración 012).
+    const paidCents = Math.round(Number(mp.transaction_amount ?? 0) * 100);
+    const { data: outcome, error: rpcErr } = await supabase.rpc('apply_mp_payment', {
+      p_order_number: extRef,
+      p_payment_id: String(mp.id),
+      p_mp_status: String(mp.status || ''),
+      p_paid_cents: paidCents,
+      p_currency: String(mp.currency_id || ''),
+      // MP cobra en pesos enteros y cada ítem se redondea: 1 peso por línea
+      p_tolerance_cents: 100 * (Array.isArray(mp.additional_info?.items) ? mp.additional_info.items.length : 1),
+      p_raw: mp,
+    });
 
-    if (updErr || !order) {
-      console.error(`mp-webhook: order update failed for ${extRef}:`, updErr?.message);
-      return plain('ok');
+    if (rpcErr) {
+      // Error transitorio de BD: 500 para que Mercado Pago reintente
+      console.error(`mp-webhook: apply_mp_payment failed for ${extRef}:`, rpcErr.message);
+      return plain('error', 500);
     }
 
-    // APPROVED → decrementar stock + confirmar cupones + marcar PAID
-    if (status === 'APPROVED' && order.status !== 'PAID') {
-      const { data: items } = await supabase
-        .from('order_items')
-        .select('variant_id, quantity')
-        .eq('order_id', order.id);
-
-      // Decrementar stock en paralelo
-      if (items && items.length > 0) {
-        const stockResults = await Promise.allSettled(
-          items.map(it =>
-            supabase.rpc('decrement_inventory_safe', {
-              p_variant_id: it.variant_id,
-              p_qty: it.quantity,
-            })
-          )
-        );
-        const failedStock = stockResults.filter(r => r.status === 'rejected');
-        if (failedStock.length > 0) {
-          console.error(`mp-webhook: ${failedStock.length} stock decrement(s) failed for order ${order.id}`);
-        }
-      }
-
-      // Confirmar reservas de cupones en paralelo
-      const { data: reservations } = await supabase
-        .from('coupon_reservations')
-        .select('discount_id')
-        .eq('order_id', order.id);
-
-      if (reservations && reservations.length > 0) {
-        const couponResults = await Promise.allSettled(
-          reservations.map(r =>
-            supabase.rpc('confirm_coupon_reservation', {
-              p_order_id: order.id,
-              p_discount_id: r.discount_id,
-            })
-          )
-        );
-        const failedCoupons = couponResults.filter(r => r.status === 'rejected');
-        if (failedCoupons.length > 0) {
-          console.error(`mp-webhook: ${failedCoupons.length} coupon confirm(s) failed for order ${order.id}`);
-        }
-      }
-
-      await supabase
-        .from('orders')
-        .update({ status: 'PAID' })
-        .eq('id', order.id);
+    if (['NOT_PAYABLE', 'AMOUNT_MISMATCH', 'OUT_OF_STOCK', 'PAYMENT_REVERSED'].includes(String(outcome))) {
+      // Requiere revisión manual (posible reembolso); reintentar no lo arregla
+      console.error(`mp-webhook: ATENCIÓN orden ${extRef} pago ${mp.id}: ${outcome}`, {
+        mp_status: mp.status,
+        paid_cents: paidCents,
+        currency: mp.currency_id,
+      });
+    } else {
+      console.log(`mp-webhook: orden ${extRef} pago ${mp.id}: ${outcome}`);
     }
 
     return plain('ok');
   } catch (error) {
     console.error('mp-webhook unexpected error:', error instanceof Error ? error.message : error);
-    return plain('ok');
+    return plain('error', 500);
   }
 });

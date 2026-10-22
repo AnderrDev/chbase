@@ -1,6 +1,12 @@
 // supabase/functions/create-preference/index.ts
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import {
+  computeShippingCents,
+  evaluateCoupon,
+  type CartLine,
+  type DiscountCode,
+} from '../_shared/coupons.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -13,6 +19,7 @@ type Payload = {
   shippingAddress?: Record<string, unknown>;
   billingAddress?: Record<string, unknown>;
   couponCode?: string;
+  // Ignorado: el envío se calcula en servidor (computeShippingCents)
   shippingCents?: number;
   currency?: string;
 };
@@ -114,11 +121,11 @@ Deno.serve(async req => {
       );
     }
 
-    const currency = body.currency ?? 'COP';
-    const shippingCents = Math.max(0, body.shippingCents ?? 0);
+    // La tabla orders solo admite COP (check constraint)
+    const currency = 'COP';
 
     // 1) Variantes activas/no borradas
-    const variantIds = body.items.map(i => i.variant_id);
+    const variantIds = [...new Set(body.items.map(i => i.variant_id))];
     console.log('🔍 [CREATE-PREFERENCE] Buscando variantes:', {
       variantIds,
       itemsCount: body.items.length
@@ -126,7 +133,7 @@ Deno.serve(async req => {
 
     const { data: rows, error: rowsErr } = await supabase
       .from('product_variants')
-      .select('id, label, price_cents, in_stock, product_id, products(name)')
+      .select('id, label, price_cents, in_stock, product_id, products(name, category_id)')
       .in('id', variantIds)
       .eq('is_active', true)
       .is('deleted_at', null);
@@ -161,6 +168,11 @@ Deno.serve(async req => {
       );
     }
     const mapVariant = new Map(rows.map(r => [r.id, r]));
+    // products es many-to-one (objeto) aunque el tipo inferido sea un array
+    const productOf = (v: (typeof rows)[number]) =>
+      (Array.isArray(v.products) ? v.products[0] : v.products) as
+        | { name?: string; category_id?: string | null }
+        | null;
 
     // 2) Subtotal + stock
     let subtotal = 0;
@@ -178,7 +190,7 @@ Deno.serve(async req => {
         console.log(`❌ [CREATE-PREFERENCE] Variante no encontrada: ${it.variant_id}`);
         return cors({ error: `Variant not found: ${it.variant_id}` }, 400);
       }
-      if (!Number.isFinite(it.quantity) || it.quantity <= 0) {
+      if (!Number.isInteger(it.quantity) || it.quantity <= 0) {
         console.log(`❌ [CREATE-PREFERENCE] Cantidad inválida:`, {
           variant_id: it.variant_id,
           quantity: it.quantity
@@ -211,88 +223,52 @@ Deno.serve(async req => {
     console.log('✅ [CREATE-PREFERENCE] Subtotal calculado:', {
       subtotal,
       currency,
-      shippingCents
     });
 
-    // 3) Cupón
+    // 3) Cupón: mismas reglas que validate-coupon (fechas, mínimo, alcance
+    // por producto/categoría), con precios de la BD.
     let discountCents = 0;
-    let finalShipping = shippingCents;
-    let discountRow: {
-      id: string;
-      code: string;
-      discount_percentage: number;
-      discount_amount_cents: number;
-      is_active: boolean;
-    } | null = null;
+    let freeShipping = false;
+    let discountRow: DiscountCode | null = null;
 
-    if (body.couponCode) {
-      const code = String(body.couponCode).toUpperCase();
-      console.log('🎫 [CREATE-PREFERENCE] Validando cupón:', { code });
-      
-      const { data: dc, error: dcErr } = await supabase
-        .from('discount_codes')
-        .select('*')
-        .eq('code', code)
-        .eq('is_active', true)
-        .maybeSingle();
-
-      console.log('🎫 [CREATE-PREFERENCE] Resultado validación cupón:', {
-        found: !!dc,
-        error: dcErr?.message || null,
-        code
+    if (body.couponCode && String(body.couponCode).trim()) {
+      const lines: CartLine[] = body.items.map(it => {
+        const v = mapVariant.get(it.variant_id)!;
+        return {
+          variant_id: v.id,
+          product_id: v.product_id,
+          category_id: productOf(v)?.category_id ?? null,
+          unit_price_cents: v.price_cents,
+          quantity: it.quantity,
+        };
       });
-      if (dcErr)
+
+      const coupon = await evaluateCoupon(supabase, body.couponCode, lines);
+      console.log('🎫 [CREATE-PREFERENCE] Resultado validación cupón:', {
+        valid: coupon.valid,
+        code: coupon.valid ? coupon.coupon.code : coupon.code,
+      });
+
+      // Un cupón inválido es un error explícito: antes se ignoraba en silencio
+      // y el cliente podía ver un descuento que no se cobraba.
+      if (!coupon.valid) {
         return cors(
           {
-            error: 'DB error (discount)',
-            detail: dcErr.message || String(dcErr),
+            error: 'Cupón no válido',
+            detail: coupon.message,
+            message: coupon.message,
+            code: coupon.code,
           },
           400
         );
-
-      if (dc) {
-        // Validar límite de usos totales del cupón (incluyendo reservas activas)
-        if (dc.max_redemptions_total) {
-          const { data: availability, error: availabilityError } =
-            await supabase.rpc('check_coupon_availability', {
-              p_discount_id: dc.id,
-              p_max_redemptions_total: dc.max_redemptions_total,
-            });
-
-          if (availabilityError) {
-            return cors(
-              {
-                error: 'Error verificando disponibilidad del cupón',
-                detail: availabilityError.message || String(availabilityError),
-              },
-              400
-            );
-          }
-
-          if (!availability) {
-            return cors(
-              {
-                error: 'Cupón agotado',
-                message: `Este cupón ya alcanzó el máximo de ${dc.max_redemptions_total} usos`,
-                code: 'COUPON_EXHAUSTED',
-              },
-              400
-            );
-          }
-        }
-
-        discountRow = dc;
-        if (dc.type === 'PERCENT') {
-          discountCents = Math.floor(
-            (subtotal * Math.max(0, Math.min(100, dc.value_percent ?? 0))) / 100
-          );
-        } else if (dc.type === 'FIXED') {
-          discountCents = Math.max(0, Math.min(dc.value_cents ?? 0, subtotal));
-        } else if (dc.type === 'FREE_SHIPPING') {
-          finalShipping = 0;
-        }
       }
+
+      discountRow = coupon.coupon;
+      discountCents = coupon.discountCents;
+      freeShipping = coupon.freeShipping;
     }
+
+    const finalShipping = freeShipping ? 0 : computeShippingCents(subtotal);
 
     const total = Math.max(0, subtotal + finalShipping - discountCents);
     const orderNumber = `CH${Date.now()}`;
@@ -345,7 +321,7 @@ Deno.serve(async req => {
     // 5) Items
     const itemsToInsert = body.items.map(it => {
       const v = mapVariant.get(it.variant_id)!;
-      const name = v.products?.name ?? '';
+      const name = productOf(v)?.name ?? '';
       return {
         order_id: order.id,
         product_id: v.product_id,
@@ -368,43 +344,47 @@ Deno.serve(async req => {
         400
       );
 
-    // 6) Crear reserva temporal del cupón (no se descuenta hasta confirmar pago)
+    // 6) Reserva atómica del cupón (límite total y por cliente). No se
+    // descuenta hasta que el webhook confirma el pago.
     if (discountRow) {
-      // Verificar si ya existe una reserva para esta orden y cupón
-      const { data: existingReservation } = await supabase
-        .from('coupon_reservations')
-        .select('id')
-        .eq('order_id', order.id)
-        .eq('discount_id', discountRow.id)
-        .gt('expires_at', new Date().toISOString())
-        .maybeSingle();
-
-      if (!existingReservation) {
-        // Solo crear reserva si no existe una activa
-        const { data: reservationId, error: reservationError } =
-          await supabase.rpc('create_coupon_reservation', {
-            p_order_id: order.id,
-            p_discount_id: discountRow.id,
-            p_code_snapshot: discountRow.code,
-            p_type_snapshot: discountRow.type,
-            p_value_percent_snapshot: discountRow.value_percent ?? null,
-            p_value_cents_snapshot: discountRow.value_cents ?? null,
-            p_amount_applied_cents: discountCents,
-            p_currency: currency,
-          });
-
-        if (reservationError) {
-          return cors(
-            {
-              error: 'Error creando reserva del cupón',
-              detail: reservationError.message || String(reservationError),
-            },
-            400
-          );
+      const { data: reservation, error: reservationError } = await supabase.rpc(
+        'reserve_coupon',
+        {
+          p_order_id: order.id,
+          p_discount_id: discountRow.id,
+          p_email: body.email,
+          p_amount_applied_cents: discountCents,
         }
-      } else {
-        console.log(
-          '🎫 Reserva ya existe para esta orden y cupón, reutilizando'
+      );
+
+      if (reservationError || reservation !== 'RESERVED') {
+        await supabase
+          .from('orders')
+          .update({ status: 'CANCELLED', payment_status: 'CANCELLED' })
+          .eq('id', order.id);
+
+        const messages: Record<string, string> = {
+          EXHAUSTED: 'Este cupón ya alcanzó el máximo de usos',
+          CUSTOMER_LIMIT: 'Ya usaste este cupón el máximo de veces permitido',
+          INVALID: 'Código de cupón no válido',
+        };
+        const codes: Record<string, string> = {
+          EXHAUSTED: 'COUPON_EXHAUSTED',
+          CUSTOMER_LIMIT: 'COUPON_CUSTOMER_LIMIT',
+          INVALID: 'COUPON_INVALID',
+        };
+        const reservationMsg =
+          messages[String(reservation)] ??
+          reservationError?.message ??
+          'No se pudo reservar el cupón';
+        return cors(
+          {
+            error: 'Cupón no disponible',
+            detail: reservationMsg,
+            message: reservationMsg,
+            code: codes[String(reservation)] ?? 'COUPON_RESERVATION_FAILED',
+          },
+          400
         );
       }
     }
@@ -435,6 +415,16 @@ Deno.serve(async req => {
           currency_id: currency,
         };
       });
+      // El envío forma parte de total_cents: antes no se enviaba a MP y el
+      // cliente pagaba menos que el total de la orden.
+      if (finalShipping > 0) {
+        mpItems.push({
+          title: 'Envío',
+          quantity: 1,
+          unit_price: Math.round(finalShipping / 100),
+          currency_id: currency,
+        });
+      }
     }
 
     // Construir URLs de retorno
@@ -457,7 +447,6 @@ Deno.serve(async req => {
 
     console.log('🔗 [CREATE-PREFERENCE] MercadoPago URLs configuradas:', {
       origin,
-      backUrls,
       notificationUrl,
       orderNumber,
     });
@@ -466,7 +455,6 @@ Deno.serve(async req => {
     console.log('📤 [CREATE-PREFERENCE] Enviando preferencia a MercadoPago:', {
       items: mpItems,
       external_reference: orderNumber,
-      back_urls: backUrls,
       notification_url: notificationUrl,
       auto_return: 'approved',
       binary_mode: true,
