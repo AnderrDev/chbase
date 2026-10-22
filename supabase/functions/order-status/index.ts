@@ -34,9 +34,11 @@ Deno.serve(async (req) => {
       email: email ? '***@' + email.split('@')[1] : null
     });
 
-    if (!orderNumber) {
-      console.log('❌ [ORDER-STATUS] order_number requerido');
-      return cors({ error: "order_number required" }, 400);
+    // El email es la prueba de propiedad: sin él cualquiera podría leer datos
+    // personales enumerando order_number (que es CH + timestamp).
+    if (!orderNumber || !email) {
+      console.log('❌ [ORDER-STATUS] order_number y email requeridos');
+      return cors({ error: "order_number and email required" }, 400);
     }
 
     const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
@@ -63,12 +65,10 @@ Deno.serve(async (req) => {
       console.log('❌ [ORDER-STATUS] Orden no encontrada:', orderNumber);
       return cors({ error: "Order not found" }, 404);
     }
-    if (email && String(order.email).toLowerCase() !== String(email).toLowerCase()) {
-      console.log('❌ [ORDER-STATUS] Email no coincide:', {
-        orderEmail: order.email,
-        requestedEmail: email
-      });
-      return cors({ error: "not found" }, 404);
+    if (String(order.email).trim().toLowerCase() !== email.trim().toLowerCase()) {
+      // Misma respuesta que "no existe" para no revelar qué pedidos existen
+      console.log('❌ [ORDER-STATUS] Email no coincide para la orden');
+      return cors({ error: "Order not found" }, 404);
     }
 
     console.log('🔍 [ORDER-STATUS] Buscando items de la orden...');
@@ -129,7 +129,6 @@ Deno.serve(async (req) => {
         payment_preference_id: order.payment_preference_id,
         payment_id: order.payment_id,
         payment_external_reference: order.payment_external_reference,
-        payment_raw: order.payment_raw,
         created_at: order.created_at,
         updated_at: order.updated_at,
       },

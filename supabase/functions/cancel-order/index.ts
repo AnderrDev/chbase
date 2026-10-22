@@ -26,33 +26,66 @@ Deno.serve(async req => {
     });
 
     const body = await req.json().catch(() => ({}));
-    const { order_id } = body;
+    const orderNumber = typeof body?.order_number === 'string' ? body.order_number : '';
+    const email = typeof body?.email === 'string' ? body.email : '';
 
-    if (!order_id) {
+    // Prueba de propiedad: order_number + email del comprador (igual que order-status).
+    // Antes bastaba con order_id, y order-status lo devolvía a cualquiera.
+    if (!orderNumber || !email) {
       return cors(
-        { error: 'ID de orden requerido', detail: 'Se requiere order_id para cancelar la orden' },
+        { error: 'Datos requeridos', detail: 'Se requieren order_number y email' },
         400
       );
     }
 
-    // Verificar que la orden existe y puede cancelarse
+    // Verificar que la orden existe, pertenece al email y puede cancelarse
     const { data: order, error: orderError } = await supabase
       .from('orders')
-      .select('id, status, payment_status')
-      .eq('id', order_id)
-      .single();
+      .select('id, email, status, payment_status')
+      .eq('order_number', orderNumber)
+      .maybeSingle();
 
-    if (orderError || !order) {
+    if (
+      orderError ||
+      !order ||
+      String(order.email).trim().toLowerCase() !== email.trim().toLowerCase()
+    ) {
       return cors({ error: 'Orden no encontrada', detail: 'La orden especificada no existe' }, 404);
     }
 
-    if (order.status === 'PAID' || order.status === 'FULFILLED') {
+    const order_id = order.id;
+
+    if (order.status !== 'CREATED') {
       return cors(
         {
           error: 'Orden no cancelable',
           detail: `No se puede cancelar una orden en estado ${order.status}`,
         },
         400
+      );
+    }
+
+    // Marcar orden como cancelada primero: el filtro por status evita pisar un
+    // pago que el webhook haya confirmado entre la lectura y este update.
+    const { data: cancelled, error: updateError } = await supabase
+      .from('orders')
+      .update({
+        status: 'CANCELLED',
+        payment_status: 'CANCELLED',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', order_id)
+      .eq('status', 'CREATED')
+      .select('id');
+
+    if (updateError) {
+      return cors({ error: 'Error cancelando orden', detail: updateError.message }, 500);
+    }
+
+    if (!cancelled || cancelled.length === 0) {
+      return cors(
+        { error: 'Orden no cancelable', detail: 'La orden cambió de estado' },
+        409
       );
     }
 
@@ -75,20 +108,6 @@ Deno.serve(async req => {
       if (failed.length > 0) {
         console.error(`cancel-order: ${failed.length} coupon release(s) failed for order ${order_id}`);
       }
-    }
-
-    // Marcar orden como cancelada
-    const { error: updateError } = await supabase
-      .from('orders')
-      .update({
-        status: 'CANCELLED',
-        payment_status: 'CANCELLED',
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', order_id);
-
-    if (updateError) {
-      return cors({ error: 'Error cancelando orden', detail: updateError.message }, 500);
     }
 
     return cors({

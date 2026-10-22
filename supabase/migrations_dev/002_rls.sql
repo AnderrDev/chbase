@@ -23,10 +23,9 @@ create policy "public read categories" on categories
 for select using (true);
 
 
--- Cupones visibles públicamente (opc)
+-- Cupones: sin lectura pública. La validación pasa por Edge Functions
+-- (service_role); exponerlos permitía listar todos los códigos activos.
 drop policy if exists "public read discount_codes" on discount_codes;
-create policy "public read discount_codes" on discount_codes
-for select using (is_active = true and (end_at is null or end_at > now()));
 
 -- Escrituras SOLO desde service_role (Edge Functions)
 drop policy if exists "svc all products" on products;
