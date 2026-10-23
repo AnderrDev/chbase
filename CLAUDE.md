@@ -27,7 +27,7 @@ npm run lint:fix      # ESLint auto-fix
 npm run type-check    # TypeScript check (no emit)
 npm run test          # Jest tests
 npm run test:watch    # Jest in watch mode
-npm run test:coverage # Jest with coverage (80% threshold)
+npm run test:coverage # Jest with coverage (85% threshold)
 ```
 
 For Netlify deployment: `npm run deploy:netlify` (generates sitemap → build → pre-deploy checks). Do **not** use plain `npm run build` for production — use `npm run build:seo` or the deploy script.
@@ -86,19 +86,21 @@ app/ or pages/   ← React UI layer
 
 **Payments**: Mercado Pago via Edge Function `create-preference`; polling order status via `order-status` Edge Function (no JWT required on this function).
 
-**Testing**: Jest 30 + React Testing Library. Test files live alongside source in `src/**/__tests__/` or as `*.test.ts(x)`. Coverage threshold: 80%.
+**Testing**: Jest 30 + React Testing Library. Test files live alongside source in `src/**/__tests__/` or as `*.test.ts(x)`; shared helpers in `src/test/`. Coverage threshold: 85%.
+
+**Project rules**: `chmarket/CLAUDE.md` holds the mandatory architecture, theme, component, SOLID, testing and accessibility rules for the storefront. Read it before changing anything in `chmarket/`.
 
 ### chmarket-admin-panel Architecture
 
 **App bootstrap**: `src/main.tsx` → `src/App.tsx` (AuthContext, lazy-loaded routes with Suspense)
 
-**State management**: React Context only (no React Query). `AuthContext` wraps the entire app and manages Supabase session persistence.
+**State management**: React Query for products and orders (`useProducts`, `useOrders`, Dashboard); categories and discounts still use `useState`/`useEffect`. `AuthContext` wraps the entire app and manages the Supabase session; admin access requires `app_metadata.role = 'admin'`.
 
 **Auth flow**: Email/password via Supabase Auth → `AuthContext` → `ProtectedRoute` wrapper on all non-login pages.
 
-**Edge Functions**: Admin functions use `service_role` key to bypass RLS — all mutations go through Edge Functions (`admin-products`, `admin-orders`, `admin-discounts`, `admin-categories`, `upload`), not direct Supabase client writes.
+**Edge Functions**: Admin functions use `service_role` key to bypass RLS — all mutations go through Edge Functions (`admin-products`, `admin-orders`, `admin-discounts`, `admin-categories`, `admin-images`), not direct Supabase client writes.
 
-**No tests yet.** Prettier is enforced (`.prettierrc`; 2-space indent, single quotes, trailing commas, 80-char lines).
+**Tests**: Vitest + React Testing Library (`npm test`). Prettier is enforced (`.prettierrc`; 2-space indent, single quotes, trailing commas, 80-char lines).
 
 ---
 
