@@ -5,7 +5,8 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const MP_ACCESS_TOKEN = Deno.env.get('MP_ACCESS_TOKEN')!;
-const WEBHOOK_SECRET = Deno.env.get('MP_WEBHOOK_SECRET');
+// WEBHOOK_SECRET: nombre con el que se guardó la clave en el proyecto actual
+const WEBHOOK_SECRET = Deno.env.get('MP_WEBHOOK_SECRET') ?? Deno.env.get('WEBHOOK_SECRET');
 
 const mpFetch = (path: string, init?: RequestInit) =>
   fetch(`https://api.mercadopago.com${path}`, {
